@@ -49,6 +49,8 @@ def analyze_market(symbol):
 
     # محاسبه اندیکاتورها
     df["RSI"] = ta.rsi(df["close"], length=14)
+    df["SMA_50"] = ta.sma(df["close"], length=50)
+    df["SMA_200"] = ta.sma(df["close"], length=200)
 
     macd_result = ta.macd(df["close"], fast=12, slow=26, signal=9)
     if macd_result is None or macd_result.empty:
@@ -56,7 +58,6 @@ def analyze_market(symbol):
 
     df["MACD"] = macd_result["MACD_12_26_9"]
     df["MACD_signal"] = macd_result["MACDs_12_26_9"]
-    df["SMA_50"] = ta.sma(df["close"], length=50)
 
     # سطوح فیبوناتچی
     fib_levels = fibonacci_levels(df)
@@ -75,7 +76,7 @@ def analyze_market(symbol):
     resistance = fib_levels["Level 61.8%"]
 
     # شرایط ورود به معامله
-    if last["RSI"] < 40 and last["MACD"] > last["MACD_signal"] and last["close"] > last["SMA_50"] * 0.99:
+    if last["RSI"] < 40 and last["MACD"] > last["MACD_signal"] and last["close"] > last["SMA_50"] and last["close"] > last["SMA_200"]:
         signal = "Buy"
         tp = round(resistance, 5)  # حد سود در سطح مقاومت
         sl = round(support, 5)  # حد ضرر در سطح حمایت
@@ -83,11 +84,13 @@ def analyze_market(symbol):
         if last["RSI"] < 30:
             risk_percentage = 5  # سرمایه‌گذاری ۵٪ سرمایه
             signal_strength = "🔴 قوی"
-        else:
+        elif last["RSI"] < 35:
             risk_percentage = 3  # سرمایه‌گذاری ۳٪ سرمایه
             signal_strength = "🟡 متوسط"
+        else:
+            signal_strength = "🟢 ضعیف"
 
-    elif last["RSI"] > 60 and last["MACD"] < last["MACD_signal"] and last["close"] < last["SMA_50"] * 1.01:
+    elif last["RSI"] > 60 and last["MACD"] < last["MACD_signal"] and last["close"] < last["SMA_50"] and last["close"] < last["SMA_200"]:
         signal = "Sell"
         tp = round(support, 5)  # حد سود در سطح حمایت
         sl = round(resistance, 5)  # حد ضرر در سطح مقاومت
@@ -95,9 +98,11 @@ def analyze_market(symbol):
         if last["RSI"] > 70:
             risk_percentage = 5  # سرمایه‌گذاری ۵٪ سرمایه
             signal_strength = "🔴 قوی"
-        else:
+        elif last["RSI"] > 65:
             risk_percentage = 3  # سرمایه‌گذاری ۳٪ سرمایه
             signal_strength = "🟡 متوسط"
+        else:
+            signal_strength = "🟢 ضعیف"
 
     return signal, entry_price, tp, sl, risk_percentage, signal_strength, support, resistance
 
