@@ -25,22 +25,41 @@ def get_data(symbol="EURUSD=X"):
         print(f"Error downloading data for {symbol}: {e}")
         return None
 
+# محاسبه سطوح فیبوناتچی
+def fibonacci_levels(df):
+    max_price = df['high'].max()
+    min_price = df['low'].min()
+    diff = max_price - min_price
+
+    levels = {
+        "Level 0%": max_price,
+        "Level 23.6%": max_price - 0.236 * diff,
+        "Level 38.2%": max_price - 0.382 * diff,
+        "Level 50%": max_price - 0.5 * diff,
+        "Level 61.8%": max_price - 0.618 * diff,
+        "Level 100%": min_price
+    }
+    return levels
+
 # تحلیل بازار و تعیین میزان سرمایه‌گذاری
 def analyze_market(symbol):
     df = get_data(symbol)
     if df is None or df.empty:
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
     # محاسبه اندیکاتورها
     df["RSI"] = ta.rsi(df["close"], length=14)
 
     macd_result = ta.macd(df["close"], fast=12, slow=26, signal=9)
     if macd_result is None or macd_result.empty:
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
     df["MACD"] = macd_result["MACD_12_26_9"]
     df["MACD_signal"] = macd_result["MACDs_12_26_9"]
     df["SMA_50"] = ta.sma(df["close"], length=50)
+
+    # سطوح فیبوناتچی
+    fib_levels = fibonacci_levels(df)
 
     last = df.iloc[-1]
     entry_price = round(last["close"], 5)  # قیمت ورود به معامله
@@ -51,11 +70,15 @@ def analyze_market(symbol):
     risk_percentage = 1  # حداقل درصد سرمایه
     signal_strength = "🟢 ضعیف"  # مقدار پیش‌فرض
 
+    # تحلیل مقاومت و حمایت
+    support = fib_levels["Level 38.2%"]
+    resistance = fib_levels["Level 61.8%"]
+
     # شرایط ورود به معامله
     if last["RSI"] < 40 and last["MACD"] > last["MACD_signal"] and last["close"] > last["SMA_50"] * 0.99:
         signal = "Buy"
-        tp = round(last["close"] * 1.01, 5)  # حد سود 1٪ بالاتر
-        sl = round(last["close"] * 0.99, 5)  # حد ضرر 1٪ پایین‌تر
+        tp = round(resistance, 5)  # حد سود در سطح مقاومت
+        sl = round(support, 5)  # حد ضرر در سطح حمایت
 
         if last["RSI"] < 30:
             risk_percentage = 5  # سرمایه‌گذاری ۵٪ سرمایه
@@ -66,8 +89,8 @@ def analyze_market(symbol):
 
     elif last["RSI"] > 60 and last["MACD"] < last["MACD_signal"] and last["close"] < last["SMA_50"] * 1.01:
         signal = "Sell"
-        tp = round(last["close"] * 0.99, 5)  # حد سود 1٪ پایین‌تر
-        sl = round(last["close"] * 1.01, 5)  # حد ضرر 1٪ بالاتر
+        tp = round(support, 5)  # حد سود در سطح حمایت
+        sl = round(resistance, 5)  # حد ضرر در سطح مقاومت
 
         if last["RSI"] > 70:
             risk_percentage = 5  # سرمایه‌گذاری ۵٪ سرمایه
@@ -76,12 +99,12 @@ def analyze_market(symbol):
             risk_percentage = 3  # سرمایه‌گذاری ۳٪ سرمایه
             signal_strength = "🟡 متوسط"
 
-    return signal, entry_price, tp, sl, risk_percentage, signal_strength
+    return signal, entry_price, tp, sl, risk_percentage, signal_strength, support, resistance
 
 # ارسال سیگنال به تلگرام
 def send_signal():
     for symbol in symbols:
-        signal, entry_price, tp, sl, risk_percentage, signal_strength = analyze_market(symbol)
+        signal, entry_price, tp, sl, risk_percentage, signal_strength, support, resistance = analyze_market(symbol)
         if signal:
             message = f"📊 **سیگنال فارکس** 📊\n\n" \
                       f"📈 **جفت ارز:** {symbol}\n" \
@@ -90,7 +113,9 @@ def send_signal():
                       f"🎯 **حد سود (TP):** {tp}\n" \
                       f"🛑 **حد ضرر (SL):** {sl}\n" \
                       f"💰 **درصد سرمایه پیشنهادی:** {risk_percentage}%\n" \
-                      f"⚡ **قدرت سیگنال:** {signal_strength}"
+                      f"⚡ **قدرت سیگنال:** {signal_strength}\n" \
+                      f"🔴 **سطح حمایت:** {support}\n" \
+                      f"🔼 **سطح مقاومت:** {resistance}"
             try:
                 url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
                 requests.post(url, data={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
