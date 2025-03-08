@@ -17,7 +17,7 @@ symbols = [
 # دریافت داده‌های قیمت از یاهو فایننس
 def get_data(symbol="EURUSD=X"):
     try:
-        df = yf.download(symbol, period="7d", interval="1h")
+        df = yf.download(symbol, period="3d", interval="1h")  # تغییر بازه زمانی به ۳ روز
         df = df[["Open", "High", "Low", "Close"]]
         df.columns = ["open", "high", "low", "close"]
         return df
@@ -41,28 +41,29 @@ def fibonacci_levels(df):
     }
     return levels
 
-# تحلیل بازار و تعیین میزان سرمایه‌گذاری
+# تحلیل بازار و تعیین سیگنال‌ها
 def analyze_market(symbol):
     df = get_data(symbol)
     if df is None or df.empty:
         return None, None, None, None, None, None, None, None
 
     # محاسبه اندیکاتورها
-    df["RSI"] = ta.rsi(df["close"], length=14)
+    df["RSI"] = ta.rsi(df["close"], length=7)  # تغییر RSI از ۱۴ به ۷
     df["SMA_50"] = ta.sma(df["close"], length=50)
     df["SMA_200"] = ta.sma(df["close"], length=200)
 
-    macd_result = ta.macd(df["close"], fast=12, slow=26, signal=9)
+    macd_result = ta.macd(df["close"], fast=6, slow=13, signal=5)  # تغییر MACD از (12,26,9) به (6,13,5)
     if macd_result is None or macd_result.empty:
         return None, None, None, None, None, None, None, None
 
-    df["MACD"] = macd_result["MACD_12_26_9"]
-    df["MACD_signal"] = macd_result["MACDs_12_26_9"]
+    df["MACD"] = macd_result["MACD_6_13_5"]
+    df["MACD_signal"] = macd_result["MACDs_6_13_5"]
 
-    # سطوح فیبوناتچی
+    # سطوح فیبوناچی
     fib_levels = fibonacci_levels(df)
 
     last = df.iloc[-1]
+    prev = df.iloc[-2]
     entry_price = round(last["close"], 5)  # قیمت ورود به معامله
 
     signal = None
@@ -76,7 +77,7 @@ def analyze_market(symbol):
     resistance = fib_levels["Level 61.8%"]
 
     # شرایط ورود به معامله
-    if last["RSI"] < 40 and last["MACD"] > last["MACD_signal"] and last["close"] > last["SMA_50"] and last["close"] > last["SMA_200"]:
+    if last["RSI"] < 40 and prev["RSI"] > last["RSI"] and last["MACD"] > last["MACD_signal"] and last["close"] > last["SMA_50"]:
         signal = "Buy"
         tp = round(resistance, 5)  # حد سود در سطح مقاومت
         sl = round(support, 5)  # حد ضرر در سطح حمایت
@@ -90,7 +91,7 @@ def analyze_market(symbol):
         else:
             signal_strength = "🟢 ضعیف"
 
-    elif last["RSI"] > 60 and last["MACD"] < last["MACD_signal"] and last["close"] < last["SMA_50"] and last["close"] < last["SMA_200"]:
+    elif last["RSI"] > 60 and prev["RSI"] < last["RSI"] and last["MACD"] < last["MACD_signal"] and last["close"] < last["SMA_50"]:
         signal = "Sell"
         tp = round(support, 5)  # حد سود در سطح حمایت
         sl = round(resistance, 5)  # حد ضرر در سطح مقاومت
